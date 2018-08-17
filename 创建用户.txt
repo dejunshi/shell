@@ -1,0 +1,8 @@
+#user.sh
+
+id iflytek > /dev/null 2>&1 && exit 0
+useradd -m -d /home/iflytek -s /bin/bash -u 1888 iflytek
+echo 'iflytek:iflytek!123'|chpasswd
+echo "iflytek soft nofile 65535" >> /etc/security/limits.conf
+echo "iflytek hard nofile 65535" >> /etc/security/limits.conf
+cat /etc/pam.d/login|grep limits.so || echo "session    required     pam_limits.so" >> /etc/pam.d/login

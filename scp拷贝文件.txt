@@ -1,0 +1,27 @@
+#scp.sh :
+
+#!/bin/bash
+for ip in `cat ip.list`
+do
+  /usr/bin/expect << EOF
+  set timeout 5
+  spawn scp pressure.tar.gz $ip:/home/iflytek/
+  expect {
+          "yes/no" {send "yes\r";exp_continue}
+          "assword" {send "password\r"}
+          "%" {puts "copy file on $ip is running 1"}
+          timeout {puts "timeout on $ip";exit 1}
+          }
+  expect  {
+          "assword" {puts "password on $ip wrong";exit 1}
+          "%" {puts "copy file on $ip is running 2"}
+          timeout {puts "copy file on $ip is fail";exit 1}
+          }
+  set timeout 3000
+  expect {
+          "100%" {puts "copy file on $ip is ok"}
+           timeout {puts "copy file time is too long"}
+          }
+  expect eof
+EOF
+done

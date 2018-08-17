@@ -1,0 +1,36 @@
+#check.sh
+#!/bin/bash
+basepath=$(cd `dirname "$0"`;pwd)
+path=`echo $basepath | grep -oP "[\/0-9a-zA-Z]+(?=\/bin)"`
+date=`/bin/date -d today +"%Y-%m-%d %T"`
+today=`/bin/date -d today +"%Y%m%d"`
+echo "DATE:$date" >> $path/log/$today.log
+for ip in `/bin/cat $path/conf/ip.list`
+do
+  /bin/cat $path/etc/cmd | /usr/bin/ssh $ip "/bin/cat > /tmp/cmd.sh;/bin/bash /tmp/cmd.sh $ip;/bin/rm -rf /tmp/cmd.sh"
+done >> $path/log/$today.log
+
+
+
+#!/bin/bash
+#count.sh
+basepath=$(cd `dirname "$0"`;pwd)
+path=`echo $basepath | grep -oP "[\/0-9a-zA-Z]+(?=\/bin)"`
+today=`/bin/date -d today +"%Y%m%d"`
+data_cpu=(`cat $path/log/$today.log | grep -oP "(?<=CPU_Used:)[0-9\.]+" | xargs -n100000`)
+data_mem=(`cat $path/log/$today.log | grep -oP "(?<=Memory_Used:)[0-9\.]+" | xargs -n100000`)
+num=`cat $path/log/$today.log | grep "CPU_Used" | wc -l`
+num_cpu=`echo ${data_cpu[@]} | sed -r "s/ /+/g;s/.*/scale=2;(&)\/$num/g" | bc`
+num_mem=`echo ${data_mem[@]} | sed -r "s/ /+/g;s/.*/scale=2;(&)\/$num/g" | bc`
+[[ $num_cpu =~ ^\.[0-9]+ ]] && num_cpu="0$num_cpu%" || num_cpu="$num_cpu%"
+[[ $num_mem =~ ^\.[0-9]+ ]] && num_mem="0$num_mem%" || num_mem="$num_mem%"
+
+echo "DATE:$today  CPU_average:$num_cpu  MEM_average:$num_mem" >> $path/tmp/average.log
+
+
+
+mkdir bin etc tmp conf log
+
+*/5 * * * * /disk1/cpumemused/bin/check.sh > /dev/null 2>&1
+
+55 23 * * * /disk1/cpumemused/bin/count.sh > /dev/null 2>&1

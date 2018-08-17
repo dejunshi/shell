@@ -1,0 +1,66 @@
+#此脚本需要配置好互信后使用，用于批量分发
+#check.sh
+#!/bin/bash
+basepath=$(cd `/usr/bin/dirname "$0"`;/bin/pwd)
+#path=`/bin/echo $basepath | /bin/grep -oP "[\/0-9a-zA-Z]+(?=\/bin)"`
+path=`dirname $basepath`
+ability=`/bin/cat $path/conf/ability.cfg | /bin/grep -vE "#|^$"`
+yesterday=`/bin/date -d yesterday +"%Y%m%d"`
+
+/bin/cat $path/conf/ip.list | while read ip user password
+do
+  /bin/cat $path/etc/weblogic | /usr/bin/ssh $user@$ip "/bin/cat > /tmp/weblogic;/bin/bash /tmp/weblogic $ability $ip;/bin/rm -rf /tmp/weblogic"
+done >> $path/log/$yesterday.log
+
+#业务量统计脚本
+#weblogic
+#!/bin/bash
+ip=$2
+ips=$1
+ability=(${ips//,/ })
+#ability_num=${#ability[@]}
+pid=`sudo ps -ef | grep -i weblogic | grep -v grep | awk '{print $2}'`
+pwd=`sudo pwdx $pid | grep -oP "[^ ]+(?=\/bin)"`
+log=`sudo find $pwd -name *.log* | xargs -n1000`
+#today=`/bin/date -d today +"%Y%m%d"`
+yesterday=`/bin/date -d yesterday +"%Y-%m-%d"`
+
+for i in ${ability[@]}
+do
+  num=`sudo cat $log | grep "$yesterday" | grep "$i" | wc -l`
+  echo "DATE:$yesterday  IP:$ip  $i:$num"
+done
+
+
+#厂商能力配置文件
+#ability.cfg
+init_pose_instruction,online_instruction,offline_instruction,upgrade_instruction,gameai_1_1,gameai_1_2
+#此配置文件配置需要统计的能力的字段，以上面格式写成一行，用逗号隔开，不要有多余的空白行和空格
+
+#日志处理脚本
+#sum_week.sh
+#!/bin/bash
+basepath=$(cd `/usr/bin/dirname "$0"`;/bin/pwd)
+path=`/bin/echo $basepath | /bin/grep -oP "[\/0-9a-zA-Z]+(?=\/bin)"`
+ability=`/bin/cat $path/conf/ability.cfg | /bin/grep -vE "#|^$"`
+ability=(${ability//,/ })
+
+#yesterday=`/bin/date -d yesterday +"%Y%m%d"`
+today=`/bin/date -d today +"%Y%m%d"`
+
+for d in `echo {1..7}`
+do
+  date=`/bin/date -d today +"%Y%m%d" --date "$d days ago"`
+  /bin/cat $path/log/$date.log >> $path/log/$today.log_week && /bin/rm -rf $path/log/$date.log
+done
+
+
+for i in ${ability[@]}
+do
+  num=`/bin/cat $path/log/$today.log_week | grep -oP "(?<=$i:)[^ ]+" | xargs -n100000 | sed -r "s/ /+/g"`
+  sum=$[$num]
+  echo "DATE:$today  $i:$sum" >> $path/tmp/weblogic_sum.log
+done
+
+
+mkdir -p business/bin business/conf business/log business/tmp business/etc

@@ -1,0 +1,108 @@
+check.sh :
+#!/bin/bash
+for ip in `cat ip.list`
+do
+/usr/bin/expect << EOF
+  set timeout 5
+  spawn scp ./minfo.sh migu@$ip:/tmp/
+  expect {
+          "yes/no" { send "yes\r";exp_continue}
+          "ssword:" { send "\\\$Mg0530a\r" }
+          timeout {puts "ssh timeout on $ip";exit 1}
+         }
+  set timeout 3000
+  expect {
+           "ssword:" {puts "password is woring on $ip";exit 1}
+           100% {puts "ok"}
+           timeout {puts "copy timeout on $ip";exit 1}
+           }
+  set timeout 100
+  spawn ssh migu@$ip "bash /tmp/minfo.sh $ip;rm -rf /tmp/minfo.sh"
+  expect  "ssword:" 
+  send "\\\$Mg0530a\r" 
+  expect eof
+EOF
+done
+
+minfo.sh :
+#!/bin/bash
+checkOS(){
+os1=`cat /etc/redhat-release |grep -oP "(?<=release )[^ ]+"`
+[ "$os1" != 7.3.1611 ] && echo "Error! The os is not supported on $ip" && exit 1
+}
+HostnameIP(){
+hostname=`hostname`
+}
+setFirewall(){
+systemctl stop firewalld && systemctl disable firewalld
+systemctl status firewalld.service |grep dead > /dev/null 2>&1 || echo "Error! Failed to stop firewall on $ip"
+setenforce 0 && sed -i -r "s/^SELINUX=.*/SELINUX=disabled/" /etc/selinux/config
+}
+getCpuMem(){
+cpucore=`lscpu|sed -n 4p|awk '{print $2}'`
+mem=`free -g|grep Mem:|awk '{print $2}'`
+swap=`free -m|grep Swap:|awk '{print $2}'`
+[ $swap -ne 0 ] && echo "Need you disable swap on $ip"
+}
+ModifyTZ(){
+echo y | cp -p /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+}
+Videocard(){
+drive=`nvidia-smi | grep "NVIDIA-SMI" | awk '{print $2 $3}'`
+model=`nvidia-smi | grep "Tesla" | awk '{print $3 $4}'|uniq`
+number=`nvidia-smi | grep "Tesla" | wc -l`
+cuda=`nvcc -V |grep -oP "(?<=release )[0-9,.V ]+"`
+}
+
+#main code
+ip=$1
+
+echo "host: $ip"
+checkOS
+HostnameIP 
+setFirewall
+getCpuMem
+ModifyTZ
+Videocard
+
+echo "INFO:$hostname $ip $os1 $cpucore $mem $swap $drive $model $number $cuda"
+
+minfo2.sh :
+#!/bin/bash
+checkOS(){
+os1=`cat /etc/redhat-release |grep -oP "(?<=release )[^ ]+"`
+[ "$os1" != 7.3.1611 ] && echo "Error! The os is not supported on $ip2" && exit 1
+}
+ModifyAndGetHostnameIP(){
+hostnamectl set-hostname $hostname 
+[ $? -ne 0 ] && echo "Error! Failed to change hostname on $ip2" && exit 1
+local=`ip a s |grep -oP "10.167.*(?=/)|10.168.*(?=/)"|sort -n|xargs -n3`
+[ "$local" != "$ip2 $ip1" ] && echo "Error! found ip address is wrong on $ip2" && exit 1
+}
+setFirewall(){
+systemctl stop firewalld && systemctl disable firewalld
+systemctl status firewalld.service |grep dead > /dev/null 2>&1 || echo "Error! Failed to stop firewall on $ip2"
+setenforce 0 && sed -i -r "s/^SELINUX=.*/SELINUX=disabled/" /etc/selinux/config
+}
+getCpuMem(){
+cpucore=`lscpu|sed -n 4p|awk '{print $2}'`
+mem=`free -g|grep Mem:|awk '{print $2}'`
+swap=`free -g|grep Swap:|awk '{print $2}'`
+[ $swap -ne 0 ] && echo "Need you disable swap on $ip2"
+}
+ModifyTZ(){
+echo y | cp -p /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+}
+
+#main code
+hostname=$1
+ip1=$2
+ip2=$3
+
+checkOS
+ModifyAndGetHostnameIP 
+setFirewall
+getCpuMem
+ModifyTZ
+
+echo "INFO:$hostname $ip1 $ip2 $cpucore $mem"
