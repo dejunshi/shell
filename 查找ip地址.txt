@@ -1,0 +1,48 @@
+#查找配置文件中的ip地址
+
+#!/bin/bash
+basepath=$(cd `dirname "$0"`;pwd)
+a=`find $basepath -name *.properties`
+b=`find $basepath -name *.ini`
+for i in $a
+do
+  c=`cat $i | grep -vE "^#|^$" | grep -oP "[0-9\.]+"`
+  if [ -n "$c" ];then
+#  echo -e "\n$i" >> $basepath/log
+  for j in $c
+  do
+#    n=${#j}
+#    [ $n -gt 6 ] && echo "$i $j" >> $basepath/properties.log
+     z=`echo $j | grep -o "\." | wc -l` 
+     [ $z -eq 3 ] && echo "$i $j" >> $basepath/properties.log
+  done
+  fi
+done
+
+for i in $b
+do
+  c=`cat $i | grep -vE "^#|^$" | grep -oP "[0-9\.]+"`
+  if [ -n "$c" ];then
+#  echo -e "\n$i" >> $basepath/log
+  for j in $c
+  do
+#    n=${#j}
+#    [ $n -gt 6 ] && echo "$i $j" >> $basepath/ini.log
+     z=`echo $j | grep -o "\." | wc -l` 
+     [ $z -eq 3 ] && echo "$i $j" >> $basepath/ini.log
+  done
+  fi
+done
+  
+  
+cat $basepath/properties.log $basepath/ini.log | sort -bn | uniq | grep -vE "\.\.\.|127\.0\.0\.1" >> $basepath/log
+
+cat $basepath/log | awk '{print $1}' | sort -bn | uniq >> $basepath/log2
+cat $basepath/log | awk '{print $NF}' | sort -bn | uniq >> $basepath/log1
+
+for i in `cat $basepath/log2`
+do
+  echo $i >> $basepath/log3
+  cat $basepath/log | grep $i | awk '{print $NF}' >> $basepath/log3
+  echo >> $basepath/log3
+done
